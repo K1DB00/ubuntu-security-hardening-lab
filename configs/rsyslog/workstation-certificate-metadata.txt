@@ -1,0 +1,12 @@
+Role: rsyslog TLS client
+Subject: C=CR, O=Security Hardening Lab, CN=sec-workstation
+Issuer: C=CR, O=Security Hardening Lab, CN=Security-Lab-CA
+SAN DNS: sec-workstation
+SAN IP: 192.168.223.128
+Extended Key Usage: TLS Web Client Authentication
+Certificate file permissions: root:syslog 0640
+Private key file permissions: root:syslog 0640
+CA certificate file permissions: root:syslog 0640
+
+# Certificate and private key contents are intentionally excluded from this repository.
+# The lab CA private key is never stored in the repository.
