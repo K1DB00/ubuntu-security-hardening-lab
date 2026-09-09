@@ -1,0 +1,4 @@
+# Security Hardening Lab - rsyslog mTLS certificates
+/etc/rsyslog/ssl/ca.crt r,
+/etc/rsyslog/ssl/server.crt r,
+/etc/rsyslog/ssl/server.key r,
