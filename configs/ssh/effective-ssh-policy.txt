@@ -1,0 +1,12 @@
+# Effective SSH policy verified with sshd -T
+# This file documents effective runtime configuration.
+# Not every directive below originates from 99-security-hardening.conf.
+
+maxauthtries 3
+permitrootlogin no
+pubkeyauthentication yes
+passwordauthentication no
+kbdinteractiveauthentication no
+permitemptypasswords no
+allowusers adminsec
+authenticationmethods any
