@@ -1,0 +1,13 @@
+/var/log/security-monitor.log
+/var/log/security-audit-cron.log
+/var/log/security-backup.log
+{
+    su root adm
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root adm
+}
