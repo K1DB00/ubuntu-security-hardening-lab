@@ -1,0 +1,17 @@
+# Security Hardening Lab - root automation schedule
+
+# System resource monitoring every 5 minutes
+*/5 * * * * /opt/security-hardening/scripts/monitor-system.sh >> /var/log/security-monitor.log 2>&1
+
+# Daily security audit report at 01:00
+0 1 * * * /opt/security-hardening/scripts/generate-audit-report.sh >> /var/log/security-audit-cron.log 2>&1
+
+# Daily security log backup at 02:00
+0 2 * * * /opt/security-hardening/scripts/backup-security-logs.sh >> /var/log/security-backup.log 2>&1
+
+# Remove security log backups older than 30 days every Sunday at 03:00
+0 3 * * 0 /opt/security-hardening/scripts/cleanup-backups.sh >> /var/log/security-backup.log 2>&1
+
+# Verified service state:
+# cron: active
+# cron enabled at boot: yes
