@@ -1,0 +1,27 @@
+# Effective Fail2Ban SSH jail state verified on sec-server
+# This repository does not include a custom jail.local because the lab
+# currently relies on the effective packaged/default SSH jail configuration.
+
+Service state: active
+Service enabled at boot: yes
+
+Jail count: 1
+Enabled jail: sshd
+
+[sshd]
+maxretry = 5
+findtime = 600
+bantime = 600
+
+Journal match:
+_SYSTEMD_UNIT=ssh.service + _COMM=sshd
+
+Configuration validation:
+OK: configuration test is successful
+
+Runtime state at verification:
+Currently failed: 0
+Currently banned: 0
+
+# Runtime counters may vary between executions.
+# No IP addresses or raw authentication logs are stored in this repository.
