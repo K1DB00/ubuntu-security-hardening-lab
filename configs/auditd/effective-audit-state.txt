@@ -1,0 +1,32 @@
+# Effective audit state verified on sec-server
+
+# Loaded rules
+-w /etc/passwd -p wa -k identity_changes
+-w /etc/group -p wa -k identity_changes
+-w /etc/shadow -p wa -k identity_changes
+-w /etc/gshadow -p wa -k identity_changes
+-w /etc/sudoers -p wa -k privilege_changes
+-w /etc/sudoers.d -p wa -k privilege_changes
+-w /etc/ssh/sshd_config -p wa -k ssh_config_changes
+-w /etc/ssh/sshd_config.d -p wa -k ssh_config_changes
+-w /etc/rsyslog.conf -p wa -k logging_changes
+-w /etc/rsyslog.d -p wa -k logging_changes
+-w /etc/rsyslog/ssl -p wa -k logging_changes
+-w /etc/apparmor.d -p wa -k apparmor_changes
+-w /etc/audit -p wa -k audit_config_changes
+-a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=-1 -F key=privileged_commands
+
+# auditctl -s
+enabled 2
+failure 1
+rate_limit 0
+backlog_limit 8192
+lost 0
+backlog 0
+backlog_wait_time 60000
+loginuid_immutable 0 unlocked
+
+# Notes:
+# "enabled 2" means audit configuration is immutable until reboot.
+# The kernel displays auid!=4294967295 as auid!=-1 in the loaded rule representation.
+# The PID value is intentionally omitted because it is runtime-specific.

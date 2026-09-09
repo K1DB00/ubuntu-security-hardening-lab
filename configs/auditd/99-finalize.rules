@@ -1,0 +1,3 @@
+# Security Hardening Lab - Audit Tamper Resistance
+# Lock audit configuration until system reboot
+-e 2
