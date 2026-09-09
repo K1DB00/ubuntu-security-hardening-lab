@@ -1,0 +1,46 @@
+# Effective UFW firewall policy verified on sec-server
+# This file documents runtime policy rather than copying UFW-generated
+# internal rule files into the repository.
+
+Status: active
+Logging: on (low)
+
+Default policies:
+Incoming: deny
+Outgoing: allow
+Routed/forwarded: deny
+
+Inbound rules:
+
+1. OpenSSH
+   Port: 22/tcp
+   Action: ALLOW IN
+   Source: Anywhere (IPv4)
+
+2. rsyslog mutual TLS
+   Port: 6514/tcp
+   Action: ALLOW IN
+   Source: 192.168.223.128
+   Comment: rsyslog mTLS from sec-workstation
+
+3. OpenSSH
+   Port: 22/tcp
+   Action: ALLOW IN
+   Source: Anywhere (IPv6)
+
+Relevant listeners verified on sec-server:
+
+IPv4:
+0.0.0.0:22    - systemd SSH socket
+0.0.0.0:6514  - rsyslogd
+
+IPv6:
+[::]:22       - systemd SSH socket
+[::]:6514     - rsyslogd
+
+Security notes:
+- TCP/6514 is allowed through UFW only from sec-workstation at 192.168.223.128.
+- No IPv6 allow rule exists for TCP/6514.
+- Because the default incoming policy is deny, unsolicited IPv6 traffic to TCP/6514 remains blocked by UFW.
+- SSH remains reachable over IPv4 and IPv6; authentication restrictions are enforced separately by the hardened OpenSSH policy.
+- Process IDs are intentionally omitted because they are runtime-specific.
