@@ -1,0 +1,85 @@
+# --- Private key material ---
+*.pem
+*.key
+*_rsa
+*_dsa
+*_ecdsa
+*_ed25519
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.p12
+*.pfx
+*.crt.key
+
+# --- Credentials / secrets ---
+*.env
+.env.*
+secrets/
+secrets.*
+credentials
+credentials.*
+*.secret
+*.token
+*_password*
+*.htpasswd
+
+# --- Logs ---
+*.log
+logs/
+*.log.*
+*.journal
+
+# --- Generated audit / report output ---
+*audit-report*
+*-report.txt
+*-report.json
+*-report.html
+reports/
+
+# --- Backup archives ---
+*.bak
+*.backup
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+
+# --- VMware virtual machine files ---
+*.vmdk
+*.vmem
+*.vmsn
+*.vmsd
+*.vmss
+*.vmx
+*.vmxf
+*.nvram
+*.vmtm
+*.log.vmware
+
+# --- OS temporary files ---
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# --- Editor temporary files ---
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# --- Lab-specific SSH private key protection ---
+adminsec_sec_server
+.ssh/
+**/.ssh/
+
+# --- Explicit allowlist (do not ignore) ---
+!*.pub
+!*.md
+!*.png
+!*.jpg
+!*.jpeg
