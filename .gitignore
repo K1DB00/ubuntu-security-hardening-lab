@@ -83,3 +83,4 @@ adminsec_sec_server
 !*.png
 !*.jpg
 !*.jpeg
+!scripts/generate-audit-report.sh
