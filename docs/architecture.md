@@ -13,50 +13,7 @@ The lab consists of two virtual machines on a private VMware network:
 
 The configuration in this repository is a mix of files that were authored directly and files that document verified state captured from the running systems (named `effective-*.txt`). When a section describes observed state rather than authored configuration, it says so directly — the two aren't always identical, as with the Fail2Ban `sshd` jail and part of the SSH policy.
 
-## 2. Architecture Diagram
-
-```mermaid
-flowchart LR
-    subgraph WS["sec-workstation — 192.168.223.128\nUbuntu Desktop / Admin Workstation"]
-        WSADMIN["adminsec\nSSH client (public key)"]
-        WSRSYSLOG["rsyslog client\nmTLS cert CN=sec-workstation"]
-        WSAA["AppArmor local override\n(rsyslog cert/key read access)"]
-    end
-
-    subgraph SRV["sec-server — 192.168.223.135\nUbuntu Server / Hardened Target & Log Collector"]
-        UFW["UFW\ndefault deny incoming / allow outgoing"]
-        SSHD["sshd (systemd socket activation)\npubkey only, MaxAuthTries 3\nAllowUsers adminsec"]
-        PAM["PAM stack\npam_faillock + pam_pwquality"]
-        F2B["Fail2Ban\nsshd jail (effective state)"]
-        SUDO["sudoers\nadminsec (sudo administrator)"]
-        AUDITD["auditd\nidentity / sudo / SSH / rsyslog / AppArmor watches\n-e 2 (locked until reboot)"]
-        RSYSLOGD["rsyslogd TLS listener\nGnuTLS, TCP/6514\nAuthMode x509/name\nPermittedPeer sec-workstation"]
-        SRVAA["AppArmor local override\n(rsyslog cert/key read access)"]
-        CRON["cron automation\nmonitor / audit report / backup / cleanup"]
-        LOGS[("/var/log\n/var/backups/security-logs\n/var/log/security-audit-reports\n(security-auditors group read)")]
-    end
-
-    WSADMIN -- "SSH TCP/22" --> UFW
-    UFW --> SSHD
-    SSHD --> PAM
-    PAM --> SUDO
-
-    WSRSYSLOG -- "rsyslog mTLS TCP/6514\nCA: Security-Lab-CA" --> UFW
-    UFW --> RSYSLOGD
-    RSYSLOGD --> LOGS
-
-    F2B -. monitors .-> SSHD
-    AUDITD -. watches config of .-> SSHD
-    AUDITD -. watches config of .-> RSYSLOGD
-    AUDITD -. watches config of .-> SUDO
-    CRON --> LOGS
-    WSAA -. confines .-> WSRSYSLOG
-    SRVAA -. confines .-> RSYSLOGD
-```
-
-The diagram only shows what's actually in the lab. There's no router, cloud service, load balancer, or SIEM platform here — just the two hosts communicating directly over a private VMware network. Anything beyond that is outside the scope of this project.
-
-## 3. Host Roles
+## 2. Host Roles
 
 ### sec-server (192.168.223.135)
 sec-server is the Ubuntu Server machine that gets hardened and also acts as the central log collector. It accepts SSH administrative connections, receives log traffic from sec-workstation over mutual TLS, and runs the security controls this project is built around: auditd, UFW, Fail2Ban, PAM hardening, SSH hardening, AppArmor confinement for rsyslog, and the cron jobs that handle monitoring, audit reporting, backups, and cleanup.
@@ -64,16 +21,16 @@ sec-server is the Ubuntu Server machine that gets hardened and also acts as the 
 ### sec-workstation (192.168.223.128)
 sec-workstation is the Ubuntu Desktop machine used to administer sec-server. It connects over SSH as `adminsec` and forwards its own system logs to sec-server through the same mutual-TLS rsyslog channel.
 
-## 4. Network and Trust Boundaries
+## 3. Network and Trust Boundaries
 
-The lab runs on a private VMware network with no routing to external networks. sec-server's firewall (UFW) is the main line of defense, backed up by controls at the service level:
+The lab runs on a private VMware network. UFW on sec-server controls what incoming traffic reaches it, backed up by additional controls at the service level:
 
 - **SSH (TCP/22)** — reachable from any IPv4/IPv6 source per the effective UFW policy, but protected by public-key authentication, a restricted user list (`AllowUsers adminsec`), and a low `MaxAuthTries`.
 - **rsyslog mTLS (TCP/6514)** — protected at two levels: UFW only allows traffic from `192.168.223.128`, and rsyslog itself requires mutual X.509 authentication (`AuthMode x509/name`) with an explicit `PermittedPeer`.
 
 The logging channel is protected twice — by source IP at the firewall and by certificate identity at the transport layer. SSH relies mainly on authentication, since UFW doesn't restrict it by source address.
 
-## 5. Administrative Access Architecture
+## 4. Administrative Access Architecture
 
 SSH is the only way to remotely administer sec-server, and it's locked down accordingly (see [`configs/ssh/99-security-hardening.conf`](../configs/ssh/99-security-hardening.conf) and the verified [`configs/ssh/effective-ssh-policy.txt`](../configs/ssh/effective-ssh-policy.txt)):
 
@@ -89,12 +46,12 @@ SSH is the only way to remotely administer sec-server, and it's locked down acco
 |---|---|---|
 | `adminsec` | Sole sudo administrator and authorized SSH user | Public-key SSH only |
 | `auditor` | Read-only access to generated security audit reports | Non-sudo; access via membership in the `security-auditors` group, which owns `/var/log/security-audit-reports` |
-| `ubuntu` | Legacy account retained for UID ownership and historical audit traceability | Password locked, SSH key disabled, no supplementary groups |
+| `ubuntu` | Legacy account retained for UID ownership and historical audit traceability | Password locked, previous SSH key disabled, no supplementary groups |
 | `root` | — | Remote SSH login disabled (`PermitRootLogin no`) |
 
-This setup separates administrative and auditing responsibilities. `adminsec` manages the server and has sudo access, `auditor` can read generated audit reports but nothing else, `ubuntu` is kept around only for file-ownership and traceability and can't log in at all, and root has no remote access.
+This setup separates administrative and auditing responsibilities. `adminsec` manages the server and has sudo access, `auditor` can read generated audit reports but nothing else, `ubuntu` is retained for file-ownership and historical traceability while its previous access paths remain disabled, and root has no remote access.
 
-## 6. Centralized Logging and mTLS Architecture
+## 5. Centralized Logging and mTLS Architecture
 
 sec-server runs an rsyslog TLS listener on TCP/6514 using the GnuTLS stream driver ([`configs/rsyslog/10-tls-server.conf`](../configs/rsyslog/10-tls-server.conf)):
 
@@ -116,9 +73,9 @@ Both sides authenticate each other with X.509 certificates issued by the lab cer
 
 `AuthMode x509/name` combined with an explicit `PermittedPeer` on each side means both hosts check the other's certificate identity specifically, not just whether it was signed by the lab CA. Certificate and private key files are stored with `root:syslog 0640` permissions. Private keys and certificate contents are excluded from this repository — only certificate metadata (subject, issuer, SAN, key usage, and file permissions) is documented here.
 
-AppArmor local overrides on both hosts extend the packaged rsyslog profile to allow read access to exactly the certificate and key paths rsyslog needs for this setup (see Section 9).
+AppArmor local overrides on both hosts extend the packaged rsyslog profile to allow read access to exactly the certificate and key paths rsyslog needs for this setup (see Section 8).
 
-## 7. Audit and Tamper-Resistance Architecture
+## 6. Audit and Tamper-Resistance Architecture
 
 `auditd` on sec-server is configured with rule files under [`configs/auditd/`](../configs/auditd/):
 
@@ -132,11 +89,11 @@ AppArmor local overrides on both hosts extend the packaged rsyslog profile to al
   - Privileged command execution by authenticated users: an `execve` syscall rule scoped to `euid=0` and `auid>=1000` (excluding the unset-login-uid sentinel), keyed `privileged_commands`
 - [`99-finalize.rules`](../configs/auditd/99-finalize.rules) sets `-e 2`, which locks the audit configuration so it cannot be altered again until the next reboot.
 
-The verified state ([`configs/auditd/effective-audit-state.txt`](../configs/auditd/effective-audit-state.txt)), captured with `auditctl -s` on sec-server, confirms `enabled 2` — the immutability flag is active. This means once the rules are loaded, nobody (not even root) can modify or disable them without rebooting the system first, which is a much more disruptive and noticeable action. The effective-state file also notes a small kernel quirk: `auid!=4294967295` shows up as `auid!=-1` in the loaded rule — a good example of how what you write in a config file isn't always exactly what the kernel reports back.
+The verified state ([`configs/auditd/effective-audit-state.txt`](../configs/auditd/effective-audit-state.txt)), captured with `auditctl -s` on sec-server, confirms `enabled 2` — the immutability flag is active. Once loaded in immutable mode, the audit rules cannot be changed through the normal audit configuration interface until the system is rebooted, which is a much more disruptive and noticeable action than a routine config edit. The effective-state file also notes a small kernel quirk: `auid!=4294967295` shows up as `auid!=-1` in the loaded rule — a good example of how what you write in a config file isn't always exactly what the kernel reports back.
 
-The daily audit report script (Section 11) reads from this same rule set using `ausearch` and `aureport`, summarizing identity, privilege, SSH, logging, AppArmor, and audit-configuration changes, along with privileged command executions and authentication/login activity, for the previous 24 hours.
+The daily audit report script (Section 10) reads from this same rule set using `ausearch` and `aureport`, summarizing identity, privilege, SSH, logging, AppArmor, and audit-configuration changes, along with privileged command executions and authentication/login activity, for the previous 24 hours.
 
-## 8. Authentication and Brute-Force Protection
+## 7. Authentication and Brute-Force Protection
 
 Two PAM controls handle local authentication on sec-server, wired into the PAM stack as shown in [`configs/pam/pam-stack-relevant-lines.txt`](../configs/pam/pam-stack-relevant-lines.txt):
 
@@ -165,7 +122,7 @@ Two PAM controls handle local authentication on sec-server, wired into the PAM s
 
 Together these cover two different problems: weak or predictable passwords (`pwquality`, enforced in `common-password` before `pam_unix`) and repeated login attempts against local accounts (`pam_faillock`, enforced in `common-auth` and `common-account`).
 
-## 9. Application Confinement
+## 8. Application Confinement
 
 AppArmor confinement here is narrow and specific: **local override files** extend the Ubuntu-packaged rsyslog profile to allow access to the TLS certificates and keys, rather than replacing it with a fully custom profile:
 
@@ -174,7 +131,7 @@ AppArmor confinement here is narrow and specific: **local override files** exten
 
 Each override adds only the file paths rsyslog needs for its role in the mTLS exchange (server or client certificate/key), on top of whatever the packaged profile already allows. It's a small, targeted extension of an existing profile — not a full AppArmor policy written from scratch.
 
-## 10. Firewall Architecture
+## 9. Firewall Architecture
 
 UFW is active on sec-server with the following effective policy ([`configs/ufw/effective-ufw-policy.txt`](../configs/ufw/effective-ufw-policy.txt)):
 
@@ -189,9 +146,9 @@ UFW is active on sec-server with the following effective policy ([`configs/ufw/e
 | 2 | rsyslog mutual TLS | 6514/tcp | ALLOW IN | `192.168.223.128` (sec-workstation) |
 | 3 | OpenSSH | 22/tcp | ALLOW IN | Anywhere (IPv6) |
 
-SSH is reachable over both IPv4 and IPv6, with actual access control handled by the hardened OpenSSH policy (public-key auth, `AllowUsers`, `MaxAuthTries`). The mTLS logging port is restricted to a single IPv4 source address at the firewall, and **there's no IPv6 allow rule for TCP/6514** — IPv6 traffic to that port is blocked only because the default incoming policy is deny, not by an explicit rule written for it. This makes sense given the lab's IPv4-only rsyslog setup, but it does mean the firewall isn't fully dual-stack for the logging service (see Section 13).
+SSH is reachable over both IPv4 and IPv6, with actual access control handled by the hardened OpenSSH policy (public-key auth, `AllowUsers`, `MaxAuthTries`). The mTLS logging port is restricted to a single IPv4 source address at the firewall, and **there's no IPv6 allow rule for TCP/6514** — IPv6 traffic to that port is blocked only because the default incoming policy is deny, not by an explicit rule written for it. This makes sense given the lab's IPv4-only rsyslog setup, but it does mean the firewall isn't fully dual-stack for the logging service (see Section 12).
 
-## 11. Security Automation and Operational Flow
+## 10. Security Automation and Operational Flow
 
 Security automation on sec-server runs from the root crontab ([`configs/cron/root-crontab`](../configs/cron/root-crontab)):
 
@@ -206,7 +163,7 @@ Retention is enforced in two places: `generate-audit-report.sh` deletes reports 
 
 The overall flow: system monitoring every 5 minutes → daily audit report at 01:00 → daily log backup at 02:00 (scheduled after the report so it gets included) → weekly backup cleanup on Sunday at 03:00.
 
-## 12. Repository Mapping
+## 11. Repository Mapping
 
 | Path | Contents |
 |---|---|
@@ -219,11 +176,11 @@ The overall flow: system monitoring every 5 minutes → daily audit report at 01
 | `configs/rsyslog/` | TLS server/forwarder configuration and certificate metadata (no key material) for the mTLS logging channel |
 | `configs/ssh/` | Authored SSH hardening drop-in and the documented effective `sshd -T` policy |
 | `configs/ufw/` | Documented effective UFW firewall policy and verified listener state |
-| `scripts/` | The four security automation scripts described in Section 11 |
+| `scripts/` | The four security automation scripts described in Section 10 |
 | `evidence/` | Reserved for supporting evidence organized by control area (`auditd`, `automation`, `firewall`, `iam`, `mtls`, `pam`, `ssh`) |
 | `docs/` | Documentation, including this architecture document |
 
-## 13. Architecture Limitations
+## 12. Architecture Limitations
 
 This lab documents one specific, working configuration — it's not meant to be complete or production-ready. Some known limitations:
 
